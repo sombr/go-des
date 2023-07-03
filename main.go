@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 
-	heap "github.com/sombr/go-container-heap"
 	roundrobin "github.com/sombr/go-container-roundrobin"
 )
 
@@ -71,18 +70,17 @@ func (s *Simulation) run(seed int64) (percentileTime [101]int) {
 
 func main() {
 	r := roundrobin.NewRingQueue[int](10)
-	h := heap.NewHeap[int](10, func(a, b *int) bool { return b == nil || a != nil && *a < *b })
 
 	stepSim := Simulation{
 		eventQueue:     r,
-		passengerCount: 100000,
+		passengerCount: 1_000_000,
 		gateCount:      10,
 		breakChance:    0.05,
-		repairTime:     func() int { return 120 },
-		processingTime: func() int { return 15 },
+		repairTime:     120,
+		processingTime: 15,
 	}
 
 	res := stepSim.run(100)
 
-	fmt.Println(res, r, h)
+	fmt.Println(res)
 }
