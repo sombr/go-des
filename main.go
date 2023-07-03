@@ -5,7 +5,6 @@ import (
 	"math/rand"
 
 	heap "github.com/sombr/go-container-heap"
-	roundrobin "github.com/sombr/go-container-roundrobin"
 )
 
 type EventQueue[T any] interface {
@@ -15,9 +14,14 @@ type EventQueue[T any] interface {
 	Size() int
 }
 
+type Event struct {
+	time int
+	kind byte
+}
+
 type Simulation struct {
 	// min-queue for tracking repair times
-	eventQueue EventQueue[int]
+	eventQueue EventQueue[Event]
 	// total volume we need to process
 	passengerCount int
 	// number of parallel processing gates
@@ -35,29 +39,49 @@ func (s *Simulation) run(seed int64) (percentileTime [101]int) {
 
 	var time int
 	var done int
+	var inflight int
 	var broken int
 	for done < s.passengerCount {
-		// fix broken
-		for s.eventQueue.Size() > 0 {
-			ts, _ := s.eventQueue.Peek()
-			if ts > time {
-				break
-			}
-			s.eventQueue.Pop()
-			broken--
-		}
-
-		// process through all healthy gates
-		time += s.processingTime
-		done += s.gateCount - broken
-
-		// roll a chance to of breakage for all healthy gates
-		for idx := 0; idx < s.gateCount-broken; idx++ {
+		// roll broken dice
+		for idx := 0; idx < s.gateCount && broken < s.gateCount; idx++ {
 			if rgen.Float32() < s.breakChance {
 				broken++
-				s.eventQueue.Push(time + s.repairTime)
+				repairTime := s.repairTime + int(rgen.NormFloat64()*float64(s.repairTime)/4)
+				if repairTime < 0 {
+					repairTime = 0
+				}
+
+				repairedAt := time + repairTime
+				s.eventQueue.Push(Event{
+					kind: 'R', // Repair
+					time: repairedAt,
+				})
 			}
 		}
+
+		// top up inflight processing
+		for inflight < s.gateCount-broken {
+			inflight++
+			processingTime := s.processingTime + int(rgen.NormFloat64()*float64(s.processingTime)/4)
+			if processingTime < 0 {
+				processingTime = 0
+			}
+
+			doneAt := time + processingTime
+			s.eventQueue.Push(Event{
+				kind: 'D',
+				time: doneAt,
+			})
+		}
+
+		nextEvent, _ := s.eventQueue.Pop()
+		if nextEvent.kind == 'R' { // gate got repaired
+			broken--
+		} else { // passenger got processed
+			done++
+			inflight--
+		}
+		time = nextEvent.time
 
 		// PPF metrics (percentiles of done)
 		ppfIndex := 100 * done / s.passengerCount
@@ -70,19 +94,19 @@ func (s *Simulation) run(seed int64) (percentileTime [101]int) {
 }
 
 func main() {
-	r := roundrobin.NewRingQueue[int](10)
-	h := heap.NewHeap[int](10, func(a, b *int) bool { return b == nil || a != nil && *a < *b })
+	// we need 20 capacity for max 10 in flight and 10 repair events
+	h := heap.NewHeap[Event](20, func(a, b *Event) bool { return b == nil || a != nil && a.time < b.time })
 
 	stepSim := Simulation{
-		eventQueue:     r,
-		passengerCount: 100000,
+		eventQueue:     h,
+		passengerCount: 1_000_000,
 		gateCount:      10,
 		breakChance:    0.05,
-		repairTime:     func() int { return 120 },
-		processingTime: func() int { return 15 },
+		repairTime:     120,
+		processingTime: 15,
 	}
 
 	res := stepSim.run(100)
 
-	fmt.Println(res, r, h)
+	fmt.Println(res)
 }
