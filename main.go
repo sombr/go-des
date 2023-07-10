@@ -47,8 +47,13 @@ func (s *Simulation) run(seed int64) (percentileTime [101]int) {
 		}
 
 		// process through all healthy gates
-		time += s.processingTime
-		done += s.gateCount - broken
+		nextTime := time + s.processingTime
+		if s.eventQueue.Size() > 0 {
+			nextTime, _ = s.eventQueue.Peek()
+		}
+
+		done += (s.gateCount - broken) * (nextTime - time) / s.processingTime
+		time = nextTime
 
 		// roll a chance to of breakage for all healthy gates
 		for idx := 0; idx < s.gateCount-broken; idx++ {
