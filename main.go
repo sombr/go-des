@@ -34,7 +34,7 @@ type Simulation struct {
 	processingTime int
 }
 
-func (s *Simulation) run(seed int64) (percentileTime [101]int) {
+func (s *Simulation) run(seed int64) (percentileTime [3]int) {
 	rgen := rand.New(rand.NewSource(seed))
 
 	var time int
@@ -84,9 +84,12 @@ func (s *Simulation) run(seed int64) (percentileTime [101]int) {
 		time = nextEvent.time
 
 		// PPF metrics (percentiles of done)
-		ppfIndex := 100 * done / s.passengerCount
-		if percentileTime[ppfIndex] == 0 {
-			percentileTime[ppfIndex] = time
+		percentDone := 100 * done / s.passengerCount
+		percentiles := []int{50, 95, 99}
+		for idx, p := range percentiles {
+			if percentDone >= p && percentileTime[idx] == 0 {
+				percentileTime[idx] = time
+			}
 		}
 	}
 
