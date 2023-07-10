@@ -85,5 +85,6 @@ func main() {
 
 	res := stepSim.run(100)
 
-	fmt.Println(res)
+	fmt.Printf("Time to X%%: 50%% = %d, 95%% = %d, 99%% = %d\n", res[0], res[1], res[2])
+	fmt.Printf("Relative Time to X%%: 50%% = 1x, 95%% = %.2fx, 99%% = %.2fx\n", float32(res[1])/float32(res[0]), float32(res[2])/float32(res[0]))
 }
